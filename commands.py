@@ -63,6 +63,9 @@ _PROVIDER_NAMES = {
     "antigravity": "Antigravity",
     "minimax": "MiniMax",
     "ollama": "Ollama",
+    "cli-proxy-claude": "Claude (CLIProxyAPI)",
+    "cli-proxy-codex": "Codex (CLIProxyAPI)",
+    "cli-proxy-gemini": "Gemini (CLIProxyAPI)",
 }
 
 # Words a user actually types for a provider. Only used to resolve a

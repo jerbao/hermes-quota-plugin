@@ -332,6 +332,20 @@ def _collect_special_reset(previous: Any, configured: bool,
         return codex_special_reset.stale_entry(previous, "fetch-error")
 
 
+def _enabled_providers() -> Optional[set[str]]:
+    try:
+        from hermes_cli.config import load_config_readonly
+
+        config = load_config_readonly() or {}
+        settings = config["plugins"]["entries"]["quota"]["settings"]
+        value = settings["enabledProviders"]
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(value, list):
+        return None
+    return {str(item).strip() for item in value if str(item).strip()} or None
+
+
 def _fetch_one(provider_id: str, fetcher: Any) -> dict[str, Any]:
     """Run one fetcher. Fail-open by contract — never raises."""
     try:
@@ -365,7 +379,9 @@ def refresh_quota_cache(*, budget: Optional[float] = None) -> dict[str, Any]:
     """
     budget_s = REFRESH_BUDGET_S if budget is None else max(0.0, float(budget))
     previous_special = read_quota_cache().get("codex_special_reset")
-    items = list(PROVIDER_FETCHERS.items())
+    enabled = _enabled_providers()
+    items = [(pid, fetcher) for pid, fetcher in PROVIDER_FETCHERS.items()
+             if enabled is None or pid in enabled]
     results: dict[str, Any] = {}
     lock = threading.Lock()
     deadline = time.monotonic() + budget_s
@@ -440,7 +456,8 @@ def refresh_quota_cache(*, budget: Optional[float] = None) -> dict[str, Any]:
         swept = {provider_id for provider_id, _fetcher in items}
         previous_providers = read_quota_cache().get("providers") or {}
         orphans = [key for key in previous_providers
-                   if str(key).split(":", 1)[0] not in swept]
+                   if str(key).split(":", 1)[0] not in swept
+                   and (enabled is None or str(key).split(":", 1)[0] in enabled)]
         for key in orphans:
             record = previous_providers.get(key)
             if not isinstance(record, dict):

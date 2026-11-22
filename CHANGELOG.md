@@ -3,6 +3,15 @@
 Newest first. Each entry matches an annotated `vX.Y.Z` tag; the tag message is
 the release note.
 
+## 3.2.0 — 2026-11-22
+
+- Providers: `cli-proxy-claude`, `cli-proxy-codex` and `cli-proxy-gemini` read
+  every account a CLIProxyAPI deployment holds from its read-only usage
+  sidecar (`proxy_usage.url`). No token reaches Hermes; each account is its
+  own row, named by `settings.accountNames` (hash prefix → name).
+- Settings: `settings.enabledProviders` limits a refresh to the listed
+  providers; providers left out are neither fetched nor kept in the cache.
+
 ## 3.1.0 — 2026-11-06
 
 - Desktop Quota: every saved account and every quota window is visible at

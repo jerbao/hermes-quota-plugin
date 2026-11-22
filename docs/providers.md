@@ -18,6 +18,7 @@
 | `minimax` | Subscription Key **or** OAuth (`minimax-oauth`) | Token Plan 5h + Weekly windows per model; pay-as-you-go keys show `no-subscription`. Subscription Keys from both MiniMax platforms work: the CN hosts (`minimaxi.com`) are tried after the international ones when a host rejects the key as "invalid api key". The `video` model bucket is **opt-in** (default off — low tiers don't include video, so the entry reports a meaningless 100%). Enable with `hermes config set plugins.entries.quota.settings.minimaxVideoEnabled true` or `HERMES_QUOTA_MINIMAX_VIDEO_ENABLED=1`. |
 | `ollama` | `OLLAMA_API_KEY` (`sk-…`, from ollama.com/settings) | Ollama Cloud, from `GET /api/balance` (included allowance + balance, the reset period, purchased credit) and `GET /api/usage?range=30d` (spend, requests, tokens); `POST /api/me` supplies the plan label. The **Included credits** bar is the share drawn from the plan allowance, and the reset is the provider's own `period.until`. **Account balance** is the purchased wallet, which is separate money. See below. |
 | `grok` | Hermes `xai-oauth` bearer, then browser cookies | **Opt-in**, disabled by default. Reuses the Hermes xAI OAuth access token for the billing endpoint when present, then falls back to `grok_session.json`, Firefox, and Chromium-family cookies. Windows DPAPI/AES-GCM cookie decryption is supported; the xAI API exposes no plan or account name, so the card shows neither. |
+| `cli-proxy-claude` / `cli-proxy-codex` / `cli-proxy-gemini` | `GET <proxy_usage.url>/v1/usage` from a CLIProxyAPI usage sidecar | No credential in Hermes: the sidecar probes the proxy's OAuth accounts and publishes windows per account. One row per account, labelled by a hash prefix unless `settings.accountNames` maps it. Data older than 5 minutes shows `stale-data`. See below. |
 
 Each fetcher is **fail-open**: a broken provider shows `unavailable (<reason>)`
 and never blocks the rest.
@@ -224,3 +225,18 @@ Browser notes:
 - Chromium 127+ cookies prefix a SHA256(`host_key`) digest before the value; that
   prefix is stripped after decryption.
 - Safari is not supported.
+
+### CLIProxyAPI
+
+The three `cli-proxy-*` providers need the Hermes root key `proxy_usage.url`
+(an origin such as `http://cli-proxy-quota.cli-proxy-api.svc.cluster.local:8318`).
+Account ids are one-way hashes chosen by the sidecar; give them names and keep
+only the providers you use:
+
+```bash
+hermes config set plugins.entries.quota.settings.accountNames '{"502e84": "Pessoal", "1a43ea": "Trabalho"}'
+hermes config set plugins.entries.quota.settings.enabledProviders '["cli-proxy-claude", "cli-proxy-codex", "cli-proxy-gemini", "minimax", "openrouter"]'
+hermes quota refresh
+```
+
+An empty or absent `enabledProviders` keeps every provider.
