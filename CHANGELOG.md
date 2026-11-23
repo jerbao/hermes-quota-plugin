@@ -5,7 +5,7 @@ the release note.
 
 ## 3.2.0 — 2026-11-22
 
-- Providers: `cli-proxy-claude`, `cli-proxy-codex` and `cli-proxy-gemini` read
+- Providers: `proxy-claude` and `proxy-codex` read
   every account a CLIProxyAPI deployment holds from its read-only usage
   sidecar (`proxy_usage.url`). No token reaches Hermes; each account is its
   own row, named by `settings.accountNames` (hash prefix → name).

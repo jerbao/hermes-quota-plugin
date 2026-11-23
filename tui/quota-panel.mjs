@@ -17,8 +17,7 @@ export const PROVIDER_NAMES = {
   'opencode-go': 'OpenCode Go', copilot: 'Copilot', zai: 'Z.ai',
   commandcode: 'CommandCode', cursor: 'Cursor', antigravity: 'Antigravity',
   minimax: 'MiniMax', ollama: 'Ollama',
-  'cli-proxy-claude': 'Claude (CLIProxyAPI)', 'cli-proxy-codex': 'Codex (CLIProxyAPI)',
-  'cli-proxy-gemini': 'Gemini (CLIProxyAPI)',
+  'proxy-claude': 'Claude (CLIProxyAPI)', 'proxy-codex': 'Codex (CLIProxyAPI)',
 };
 
 function friendlyName(id, record, account) {

@@ -13,9 +13,8 @@ _MAX_AGE_S = 300
 _MAX_ACCOUNTS = 32
 
 FAMILIES = {
-    "cli-proxy-claude": "claude",
-    "cli-proxy-codex": "codex",
-    "cli-proxy-gemini": "gemini",
+    "proxy-claude": "claude",
+    "proxy-codex": "codex",
 }
 
 

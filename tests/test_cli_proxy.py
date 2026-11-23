@@ -68,9 +68,11 @@ def _payload(**over) -> dict:
             "codex": {"accounts": [
                 {"id": "7a7a7acccc", "state": "ready",
                  "windows": [{"label": "weekly", "used_percent": 100, "resets_at": RESET}]},
-            ]},
-            "gemini": {"accounts": [
                 {"id": "4001a2dddd", "state": "unavailable", "reason": "Credential disabled", "windows": []},
+            ]},
+            # Removed provider: must be ignored by the plugin.
+            "gemini": {"accounts": [
+                {"id": "9e91e1eeee", "state": "ready", "windows": [{"label": "d", "used_percent": 1}]},
             ]},
         },
     }
@@ -88,7 +90,7 @@ def _config(url=URL, names=None) -> dict:
 
 
 class _Base(unittest.TestCase):
-    def fetch(self, provider="cli-proxy-claude", cfg=None, body=None, raises=None):
+    def fetch(self, provider="proxy-claude", cfg=None, body=None, raises=None):
         cfg = _config() if cfg is None else cfg
         raw = body if isinstance(body, bytes) else json.dumps(body if body is not None else _payload()).encode()
         opener = mock.Mock(side_effect=raises) if raises else mock.Mock(return_value=_Resp(raw))
@@ -150,8 +152,8 @@ class TransportTests(_Base):
 
 class AccountsTests(_Base):
     def test_happy_path_claude_two_accounts_exact_windows(self):
-        r = self.fetch("cli-proxy-claude")
-        self.assertEqual(r.label, "cli-proxy-claude")
+        r = self.fetch("proxy-claude")
+        self.assertEqual(r.label, "proxy-claude")
         # The parent row is a placeholder ("no-credentials"); data lives in accounts.
         self.assertEqual(r.unavailable_reason, "no-credentials")
         self.assertEqual([a.id for a in r.accounts], ["502e84aaaa", "9f1c33bbbb"])
@@ -163,34 +165,41 @@ class AccountsTests(_Base):
                          [("5 hours", 0.0, RESET)])
 
     def test_each_provider_reads_only_its_own_family(self):
-        codex = self.fetch("cli-proxy-codex")
-        self.assertEqual([a.id for a in codex.accounts], ["7a7a7acccc"])
+        codex = self.fetch("proxy-codex")
+        self.assertEqual([a.id for a in codex.accounts], ["7a7a7acccc", "4001a2dddd"])
         self.assertEqual(codex.accounts[0].windows[0].used_percent, 100.0)
-        gem = self.fetch("cli-proxy-gemini")
-        self.assertEqual([a.id for a in gem.accounts], ["4001a2dddd"])
+
+    def test_gemini_is_not_registered_and_its_payload_data_is_ignored(self):
+        from quota_plugin_under_test.quota_providers.registry import PROVIDER_FETCHERS as reg
+        self.assertEqual(set(cp.FAMILIES), {"proxy-claude", "proxy-codex"})
+        self.assertNotIn("proxy-gemini", reg)
+        self.assertNotIn("proxy-gemini", cp.FAMILIES)
+        for pid in cp.FAMILIES:
+            ids = [a.id for a in self.fetch(pid).accounts]
+            self.assertNotIn("9e91e1eeee", ids)
 
     def test_account_names_by_prefix_become_label(self):
         names = {"502": "too short", "502E84": "  Work  ", "9f1c33": "Home", "7a7a7a": "", "4001a2": 7}
         r = self.fetch(cfg=_config(names=names))
         self.assertEqual([a.label for a in r.accounts], ["Work", "Home"])
-        self.assertEqual(self.fetch("cli-proxy-codex", cfg=_config(names=names)).accounts[0].label, "7a7a7a")
-        self.assertEqual(self.fetch("cli-proxy-gemini", cfg=_config(names=names)).accounts[0].label, "4001a2")
+        self.assertEqual(self.fetch("proxy-codex", cfg=_config(names=names)).accounts[0].label, "7a7a7a")
+        self.assertEqual(self.fetch("proxy-codex", cfg=_config(names=names)).accounts[1].label, "4001a2")
 
     def test_account_name_is_capped_at_64(self):
         r = self.fetch(cfg=_config(names={"502e84": "x" * 100}))
         self.assertEqual(r.accounts[0].label, "x" * 64)
 
     def test_unavailable_account_carries_reason_in_details(self):
-        a = self.fetch("cli-proxy-gemini").accounts[0]
+        a = self.fetch("proxy-codex").accounts[1]
         self.assertEqual(a.unavailable_reason, "proxy-unavailable")
         self.assertEqual(a.details, ["Credential disabled"])
         self.assertEqual(a.windows, [])
 
     def test_unavailable_without_reason_has_no_details_and_long_reason_is_cut(self):
-        body = _payload(providers={"gemini": {"accounts": [
+        body = _payload(providers={"codex": {"accounts": [
             {"id": "aaaaaa11", "state": "unavailable"},
             {"id": "bbbbbb22", "state": "unavailable", "reason": "r" * 500}]}})
-        a, b = self.fetch("cli-proxy-gemini", body=body).accounts
+        a, b = self.fetch("proxy-codex", body=body).accounts
         self.assertEqual(a.details, [])
         self.assertEqual(b.details, ["r" * 120])
 
@@ -229,7 +238,7 @@ class AccountsTests(_Base):
         for pid in cp.FAMILIES:
             self.assertIn(pid, reg)
         with mock.patch.object(cp, "_config", return_value={}):
-            self.assertEqual(reg["cli-proxy-codex"]().unavailable_reason, "no-credentials")
+            self.assertEqual(reg["proxy-codex"]().unavailable_reason, "no-credentials")
 
 
 class EnabledProvidersTests(unittest.TestCase):
