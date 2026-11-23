@@ -155,13 +155,9 @@ def _key_result(label, secret):
             if reset in ("daily", "weekly", "monthly"):
                 text += f"; resets {reset}"
             details.append(text)
-        elif "limit" in data and data["limit"] is None:
-            details.append(f"{label}: no key-specific cap (account wallet still applies)")
-        for field, name in (("usage", "total"), ("usage_daily", "today UTC"),
-                            ("usage_weekly", "this week UTC"), ("usage_monthly", "this month UTC")):
-            value = _amount(data.get(field))
-            if value is not None:
-                details.append(f"{label}: usage {name} USD {value:.4f}")
+        value = _amount(data.get("usage_monthly"))
+        if value is not None:
+            details.append(f"{label}: usage this month UTC USD {value:.4f}")
         if not details:
             details.append(f"{label}: unavailable (parse-pending)")
         return windows, details
@@ -178,8 +174,7 @@ def _wallet_result(label, secret):
         if error or total is None or used is None:
             return False, f"Account credits unavailable via {label} ({error or 'parse-pending'})"
         return True, (
-            f"Account wallet via {label}: USD {total - used:.2f} remaining "
-            "(shared account credits, shown once; not summed across keys)"
+            f"Account balance via {label}: USD {total - used:.2f} remaining"
         )
     except Exception:
         return False, f"Account credits unavailable via {label} (fetch-error)"
@@ -191,10 +186,7 @@ def fetch_openrouter_quota() -> QuotaResult:
         credentials = _resolve_credentials()
         if not credentials:
             return build_unavailable("openrouter", "no-credentials")
-        details = [
-            f"Locally configured credentials: {len(credentials)} (deduplicated); not an inventory of all account keys",
-            "Management API key listing not queried; credentials from Hermes native auth and saved pool only",
-        ]
+        details = []
         completed = queue.Queue()
         deadline = time.monotonic() + _FETCH_BUDGET_S
 
@@ -216,7 +208,6 @@ def fetch_openrouter_quota() -> QuotaResult:
             results[index] = result
         has_data, wallet = results.get(-1, (False, f"Account credits unavailable via {primary_label} (timeout)"))
         details.append(wallet)
-        details.append("Account membership of other keys is unverified; wallet is not a total across accounts")
         windows = []
         for index, (label, _) in enumerate(credentials):
             ws, ds = results.get(index, ([], [f"{label}: unavailable (timeout)"]))

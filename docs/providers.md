@@ -132,20 +132,22 @@ Saved/vendor labels, key suffixes, hashes, account IDs and emails are never
 included in display data. The ordinal follows discovery order, not a stable
 account identity or the runtime pool's current selection.
 
-- Key-specific spending cap, remaining allowance and daily/weekly/monthly usage
-  are shown when supplied by the API. A percentage requires a positive cap and
+- Key-specific spending cap, remaining allowance and this month's usage
+  are shown when supplied by the API. Total, daily and weekly usage are not
+  shown, and neither are the count of credentials or notes on what the card
+  does not cover. A percentage requires a positive cap and
   remaining allowance within that cap. An uncapped key does not mean unlimited
   account credit; an exhausted key cap does not mean an empty account wallet.
 - `/credits` is queried **once**, through the native credential (or the first
-  resolved saved credential if native resolution is unavailable). The displayed
-  wallet belongs to that credential's account. Other keys' account membership is
-  **unverified**: wallets are never summed, duplicated or inferred from equal
-  balances. The wallet is not a total across accounts.
+  resolved saved credential if native resolution is unavailable), and shown as
+  `Account balance`. The balance belongs to that credential's account. Other
+  keys' account membership is **unverified**: balances are never summed,
+  duplicated or inferred from equal balances.
 - Key and wallet requests run independently under one 10-second deadline. One
   failed or timed-out key does not hide successful keys or the wallet. If every
   request fails, the provider is unavailable rather than reporting false data.
 - The Desktop pane retains these details in **both clean and dense modes**, so
-  wallet scope, uncapped keys and per-key failures remain visible. They are also
+  the balance and per-key failures remain visible. They are also
   present in `hermes quota status --json`.
 
 ### CommandCode

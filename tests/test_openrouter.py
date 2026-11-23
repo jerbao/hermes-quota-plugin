@@ -128,9 +128,7 @@ class OpenRouterTests(unittest.TestCase):
         self.assertEqual(wallets[0].args[1], "FAKE_A")
         self.assertEqual(len(calls.call_args_list), 3)
         text = json.dumps(dataclasses.asdict(result))
-        for expected in ("USD 8.00 remaining", "Locally configured credentials: 2", "not an inventory of all account keys",
-                         "Account wallet via Key 1 (native)", "unverified", "not a total across accounts",
-                         "usage today UTC USD 1.0000", "usage this week UTC USD 2.0000",
+        for expected in ("Account balance via Key 1 (native): USD 8.00 remaining",
                          "usage this month UTC USD 3.0000", "resets monthly"):
             self.assertIn(expected, text)
         for secret in ("FAKE_A", "FAKE_B", "PRIVATE_HASH", "private@example.invalid"):
@@ -142,7 +140,6 @@ class OpenRouterTests(unittest.TestCase):
         with mock.patch.dict(sys.modules, modules), mock.patch.object(mod, "_get_json", return_value=({"data": {"limit": None, "usage": 1}}, None)) as get:
             result = mod.fetch_openrouter_quota()
         self.assertEqual(get.call_count, 3)
-        self.assertIn("Locally configured credentials: 2", repr(result))
 
     def test_key_failure_and_wallet_failure_are_independent(self):
         def get(url, key):
@@ -150,11 +147,11 @@ class OpenRouterTests(unittest.TestCase):
                 return None, "http-403"
             if key == "FAKE_A":
                 return None, "auth-failed"
-            return {"data": {"limit": None, "usage": 2}}, None
+            return {"data": {"limit": None, "usage_monthly": 2}}, None
         result, _ = self.fetch(get)
         self.assertIsNone(result.unavailable_reason)
         self.assertIn("Key 1 (native): unavailable (auth-failed)", result.details)
-        self.assertIn("Key 2 (saved): usage total USD 2.0000", result.details)
+        self.assertIn("Key 2 (saved): usage this month UTC USD 2.0000", result.details)
         self.assertIn("Account credits unavailable via Key 1 (native) (http-403)", result.details)
         self.assertEqual(result.windows, [])
 
@@ -162,9 +159,10 @@ class OpenRouterTests(unittest.TestCase):
         def get(url, key):
             if url.endswith("/credits"):
                 raise RuntimeError("PRIVATE_SECRET")
-            return {"data": {"limit": None, "usage": 0}}, None
+            return {"data": {"limit": None, "usage_monthly": 0}}, None
         result, _ = self.fetch(get)
         self.assertIsNone(result.unavailable_reason)
+        self.assertIn("Key 1 (native): usage this month UTC USD 0.0000", result.details)
         self.assertIn("Account credits unavailable via Key 1 (native) (fetch-error)", result.details)
         self.assertNotIn("PRIVATE_SECRET", repr(result))
 
@@ -191,7 +189,7 @@ class OpenRouterTests(unittest.TestCase):
         def get(url, key):
             if url.endswith("/credits") or key == "FAKE_A":
                 release.wait(2)
-            return {"data": {"limit": None, "usage": 1}}, None
+            return {"data": {"limit": None, "usage_monthly": 1}}, None
         try:
             with mock.patch.object(mod, "_FETCH_BUDGET_S", 0.05):
                 start = time.monotonic()
@@ -200,7 +198,7 @@ class OpenRouterTests(unittest.TestCase):
             self.assertLess(elapsed, 0.5)
             before = dataclasses.asdict(result)
             self.assertIn("Key 1 (native): unavailable (timeout)", result.details)
-            self.assertIn("Key 2 (saved): usage total USD 1.0000", result.details)
+            self.assertIn("Key 2 (saved): usage this month UTC USD 1.0000", result.details)
             self.assertIn("Account credits unavailable via Key 1 (native) (timeout)", result.details)
         finally:
             release.set()
@@ -210,14 +208,30 @@ class OpenRouterTests(unittest.TestCase):
         mod = self.module()
         for limit, left, expected in [(0, 0, []), (None, None, []), (5, 0, [100]), (5, -1, []), (5, 6, [])]:
             with self.subTest(limit=limit, left=left):
-                with mock.patch.object(mod, "_get_json", return_value=({"data": {"limit": limit, "limit_remaining": left, "usage": 0}}, None)):
+                with mock.patch.object(mod, "_get_json", return_value=({"data": {"limit": limit, "limit_remaining": left, "usage_monthly": 0}}, None)):
                     windows, details = mod._key_result("Key 1", "FAKE_A")
                 self.assertEqual([w.used_percent for w in windows], expected)
-                self.assertIn("Key 1: usage total USD 0.0000", details)
+                self.assertIn("Key 1: usage this month UTC USD 0.0000", details)
                 if left == 0:
                     self.assertIn("key cap exhausted; account wallet is separate", repr(details))
                 if limit is None:
-                    self.assertIn("no key-specific cap (account wallet still applies)", repr(details))
+                    self.assertEqual(details, ["Key 1: usage this month UTC USD 0.0000"])
+
+    def test_only_month_usage_and_no_account_boilerplate(self):
+        # Covers the card contract: only "this month" usage; no total/today/week
+        # and no credential-count/management/membership lines.
+        def get(url, key):
+            if url.endswith("/credits"):
+                return {"data": {"total_credits": 20, "total_usage": 12}}, None
+            return {"data": {"limit": None, "usage": 9, "usage_daily": 1,
+                             "usage_weekly": 2, "usage_monthly": 3}}, None
+        result, _ = self.fetch(get)
+        self.assertTrue(result.details[0].startswith("Account balance via Key 1 (native): USD 8.00 remaining"))
+        self.assertIn("Key 1 (native): usage this month UTC USD 3.0000", result.details)
+        for banned in ("today", "this week", "total", "no key-specific cap"):
+            self.assertNotIn(banned, repr(result.details))
+        for banned in ("Locally configured", "Management API", "membership", "shared account credits"):
+            self.assertNotIn(banned, repr(result))
 
     def test_malformed_payloads_are_safe(self):
         mod = self.module()

@@ -11,6 +11,9 @@ the release note.
   own row, named by `settings.accountNames` (hash prefix → name).
 - Settings: `settings.enabledProviders` limits a refresh to the listed
   providers; providers left out are neither fetched nor kept in the cache.
+- OpenRouter: the card shows the account balance and this month's usage. The
+  lines on credential count, the unqueried key listing, account membership,
+  total, daily and weekly usage are gone.
 
 ## 3.1.0 — 2026-11-06
 
